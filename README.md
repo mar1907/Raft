@@ -4,4 +4,5 @@ Proof of concept Python implementation of the Raft consensus algorithm using the
 Does not include some safety features like membership changes and log compaction.
 
 https://raft.github.io/raft.pdf
+
 https://raft.github.io/
