@@ -118,6 +118,7 @@ def change(matrix, val, idx, dest=0):
     print(matrix)
 
 
+# missing entries
 def test_case_1():
     time.sleep(10)
     me_link = rpyc.connect('localhost', 8080, config={'allow_public_attrs': True, "allow_all_attrs": True})
@@ -136,9 +137,15 @@ def test_case_1():
     me_link.root.send_Command(0, 2, "y=3")
     time.sleep(3)
     change(rpc, 1, 1)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
     time.sleep(5)
     for p in proxy_list:
         print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
 
     # stop communications to 2, send command, then restart
     change(rpc, 0, 2)
@@ -146,9 +153,15 @@ def test_case_1():
     me_link.root.send_Command(0, 3, "x=3")
     time.sleep(3)
     change(rpc, 1, 2)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
     time.sleep(5)
     for p in proxy_list:
         print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
 
     # stop communications to 2, send command, then restart
     change(rpc, 0, 3)
@@ -156,10 +169,140 @@ def test_case_1():
     me_link.root.send_Command(0, 1, "z=4")
     time.sleep(3)
     change(rpc, 1, 3)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
     time.sleep(5)
+    freeze()
+    time.sleep(3)
     freeze()
     for p in proxy_list:
         print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+
+
+# extra uncommitted entries - send command to down server
+# this is an example of a membership change problem - one server has a log that is absent on other servers
+# because it believed it was leader, and this log is only removed when an appendEntry with a new command
+# is added
+def test_case_2():
+    time.sleep(10)
+    me_link = rpyc.connect('localhost', 8080, config={'allow_public_attrs': True, "allow_all_attrs": True})
+    me_link.root.send_Command(0, 1, "x=1")
+    time.sleep(1)
+    me_link.root.send_Command(0, 1, "y=2")
+    time.sleep(3)
+
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+
+    # stop communications to 1, send command, then restart
+    change(rpc, 0, 1)
+    time.sleep(10)
+    me_link.root.send_Command(0, 1, "y=3")
+    time.sleep(3)
+    change(rpc, 1, 1)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+    time.sleep(5)
+    # send a new command, if 1 was leader while interrupted this will trigger it to remove the last command from log
+    me_link.root.send_Command(0, 2, "y=4")
+    time.sleep(5)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+
+    # stop communications to 2, send command, then restart
+    change(rpc, 0, 2)
+    time.sleep(10)
+    me_link.root.send_Command(0, 2, "x=3")
+    time.sleep(3)
+    change(rpc, 1, 2)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+    time.sleep(5)
+    # send a new command, if 2 was leader while interrupted this will trigger it to remove the last command from log
+    me_link.root.send_Command(0, 3, "y=5")
+    time.sleep(5)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+
+    # stop communications to 2, send command, then restart
+    change(rpc, 0, 3)
+    time.sleep(10)
+    me_link.root.send_Command(0, 3, "z=4")
+    time.sleep(3)
+    change(rpc, 1, 3)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+    time.sleep(5)
+    # send a new command, if 3 was leader while interrupted this will trigger it to remove the last command from log
+    me_link.root.send_Command(0, 1, "z=5")
+    time.sleep(5)
+    freeze()
+    time.sleep(2)
+    freeze()
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+
+
+# process has uncommitted logs from previous terms
+def test_case_3():
+    for p in proxy_list[1:]:
+        # ensure 1 wins election
+        print("cancel", p.root.id)
+        p.root.electionTimer.cancel()
+
+    time.sleep(10)
+
+    # send some good logs
+    me_link = rpyc.connect('localhost', 8080, config={'allow_public_attrs': True, "allow_all_attrs": True})
+    me_link.root.send_Command(0, 1, "x=1")
+    time.sleep(1)
+    me_link.root.send_Command(0, 1, "y=2")
+    time.sleep(3)
+
+    # stop communication to 1, send some more logs
+    change(rpc, 0, 1)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+    me_link.root.send_Command(0, 1, "z=1")
+    me_link.root.send_Command(0, 1, "t=2")
+    time.sleep(10)
+    change(rpc, 1, 1)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+
+    time.sleep(5)
+    me_link.root.send_Command(0, 2, "z=3")
+    time.sleep(5)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.state)
+    for p in proxy_list:
+        print(p.root.id, "state is", p.root.log)
+
+    freeze()
+    time.sleep(3)
+    freeze()
 
 
 if __name__ == "__main__":
@@ -176,7 +319,9 @@ if __name__ == "__main__":
 
         proxy.root.setAttributes(totalServers=server_nr, id=i)
 
-    test_case_1()
+    # test_case_1()
+    test_case_2()
+    # test_case_3()
 
     while True:
         pass

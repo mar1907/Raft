@@ -104,6 +104,9 @@ class RaftServer(rpyc.Service):
                     # delete the entry and the following entries
                     print(self.id, "delete the entry and the following entries")
                     del self.log[prevLogIndex + 1 + i:]
+                    # append the new entry
+                    print(self.id, "append the new entry")
+                    self.log.append(entries[i])
                 # else the entry already exists and is correct
             else:
                 # append the new entry
@@ -184,7 +187,6 @@ class RaftServer(rpyc.Service):
 
         last_log = self.log[-1]
         last_log_idx = len(self.log) - 1
-        print(last_log, last_log_idx, lastLogTerm, lastLogIndex)
 
         if (self.votedFor == 0 or self.votedFor == candId) and (
                 last_log[0] <= lastLogTerm and last_log_idx <= lastLogIndex):
